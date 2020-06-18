@@ -22,6 +22,9 @@ enum layers {
     _ADJUST
 };
 
+bool is_gui_tab_active = false;
+uint16_t gui_tab_timer = 0;
+
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 /* 
  * Base Layer: QWERTY
@@ -38,10 +41,15 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  *                        `----------------------------------'  `----------------------------------'
  */
     [_QWERTY] = LAYOUT(
-      LT(_RAISE, KC_ESC),       KC_Q,   KC_W,   KC_E,   KC_R,   KC_T,                                         KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    KC_PIPE,
+/*      LT(_RAISE, KC_ESC),       KC_Q,   KC_W,   KC_E,   KC_R,   KC_T,                                         KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    KC_PIPE,
       MT(MOD_LCTL, KC_BSPC),   KC_A,   KC_S,   KC_D,   KC_F,   KC_G,                                         KC_H,    KC_J,    KC_K,    KC_L,    KC_SCLN, KC_QUOT,
       KC_LSFT,                 KC_Z,   KC_X,   KC_C,   KC_V,   KC_B,   KC_LSFT,   KC_LSFT, KC_LSFT, KC_LSFT, KC_N,    KC_M,    KC_COMM, KC_DOT,  KC_SLSH, KC_MINS,
-              KC_LGUI, KC_DEL, MT(MOD_LALT, KC_ENT), LT(_LOWER, KC_SPC), LT(_RAISE, KC_ESC), LT(_LOWER, KC_ENT), LT(_RAISE, KC_SPC), KC_TAB,  KC_BSPC, KC_RALT
+              KC_LGUI, KC_DEL, MT(MOD_LALT, KC_ENT), LT(_LOWER, KC_SPC), LT(_RAISE, KC_ESC), LT(_LOWER, KC_ENT), LT(_RAISE, KC_SPC), KC_TAB,  KC_BSPC, KC_X
+*/
+      LT(_RAISE, KC_ESC),       KC_Q,   KC_W,   KC_E,   KC_R,   KC_T,                                         KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    KC_W,
+      MT(MOD_LCTL, KC_BSPC),   KC_A,   KC_S,   KC_D,   KC_F,   KC_G,                                         KC_H,    KC_J,    KC_K,    KC_L,    KC_SCLN, KC_QUOT,
+      KC_1,                 KC_Z,   KC_X,   KC_C,   KC_V,   KC_B,   KC_2,   KC_LSFT, KC_LSFT, KC_LSFT, KC_N,    KC_M,    KC_COMM, KC_DOT,  KC_SLSH, KC_MINS,
+              KC_3, KC_DEL, MT(MOD_LALT, KC_ENT), LT(_LOWER, KC_SPC), KC_W, LT(_LOWER, KC_ENT), LT(_RAISE, KC_SPC), KC_TAB,  KC_BSPC, KC_RGUI              
     ),
 /*
  * Lower Layer: Symbols
@@ -200,20 +208,39 @@ void oled_task_user(void) {
 #ifdef ENCODER_ENABLE
 void encoder_update_user(uint8_t index, bool clockwise) {
     if (index == 0) {
-        // Volume control
+        // Move between apps
+        if (!is_gui_tab_active) {
+            is_gui_tab_active = true;
+            register_code(KC_LGUI);
+        }
+        gui_tab_timer = timer_read();
         if (clockwise) {
-            tap_code(KC_VOLU);
+            tap_code16(S(KC_TAB));
         } else {
-            tap_code(KC_VOLD);
+            tap_code16(KC_TAB);
         }
     }
     else if (index == 1) {
-        // Page up/Page down
+        // Move between tabs
+        if (!is_gui_tab_active) {
+            is_gui_tab_active = true;
+            register_code(KC_LGUI);
+        }
+        gui_tab_timer = timer_read();
         if (clockwise) {
-            tap_code(KC_PGDN);
+            tap_code16(S(KC_LBRC));
         } else {
-            tap_code(KC_PGUP);
+            tap_code16(S(KC_RBRC));
         }
     }
+}
+
+void matrix_scan_user(void) {
+  if (is_gui_tab_active) {
+    if (timer_elapsed(gui_tab_timer) > 900) {
+      unregister_code(KC_LGUI);
+      is_gui_tab_active = false;
+    }
+  }
 }
 #endif
