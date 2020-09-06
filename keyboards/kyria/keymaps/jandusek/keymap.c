@@ -30,6 +30,12 @@ uint16_t wpm_graph_timer = 0;
 bool is_gui_tab_active = false;
 uint16_t gui_tab_timer = 0;
 
+// Backlight timeout feature
+#define BACKLIGHT_TIMEOUT 5   // in minutes
+static uint16_t idle_timer = 0;
+static uint8_t halfmin_counter = 0;
+//static bool led_on = true;
+
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 /* 
  * Base Layer: QWERTY
@@ -106,9 +112,9 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  */
     [_RAISE] = LAYOUT(
 //      _______, KC_1, 	  KC_2,    KC_3,    KC_4,    KC_5,                                        KC_6,     KC_7,    KC_8,    KC_9,    KC_0,    _______,
-      _______, KC_MUTE, KC_7, KC_8, KC_9, KC_MPRV,                                     _______,    KC_MS_WH_RIGHT, KC_MS_WH_UP, KC_MS_WH_DOWN, KC_MS_WH_LEFT, _______,
-      _______, KC_VOLU, KC_4, KC_5, KC_6, KC_MNXT,                                     _______,    KC_LEFT,        KC_DOWN,     KC_UP,         KC_RGHT,       _______,
-      _______, KC_VOLD, KC_1, KC_2, KC_3, KC_MPLY, _______, _______, _______, _______, KC_MS_BTN1, KC_MS_L,        KC_MS_D,     KC_MS_U,       KC_MS_R,       KC_MS_BTN2,
+      _______, KC_VOLU, KC_7, KC_8, KC_9, KC_MPRV,                                     _______,    KC_MS_WH_RIGHT, KC_MS_WH_UP, KC_MS_WH_DOWN, KC_MS_WH_LEFT, _______,
+      _______, KC_VOLD, KC_4, KC_5, KC_6, KC_MNXT,                                     _______,    KC_LEFT,        KC_DOWN,     KC_UP,         KC_RGHT,       _______,
+      _______, KC_MUTE, KC_1, KC_2, KC_3, KC_MPLY, _______, _______, _______, _______, KC_MS_BTN1, KC_MS_L,        KC_MS_D,     KC_MS_U,       KC_MS_R,       KC_MS_BTN2,
                      _______, KC_0, _______, _______, _______, _______, _______, _______, _______, _______
     ),
 /*
@@ -188,7 +194,8 @@ static void render_qmk_logo(void) {
 static void render_status(void) {
     // QMK Logo and version information
     render_qmk_logo();
-    oled_write_P(PSTR("Kyria rev1.0\n\n"), false);
+    oled_write_P(PSTR("\n"), false);
+    //oled_write_P(PSTR("\nKyria keyboard\n"), false);
 
     // Host Keyboard Layer Status
     oled_write_P(PSTR("Layer: "), false);
@@ -197,10 +204,10 @@ static void render_status(void) {
             oled_write_P(PSTR("Default\n"), false);
             break;
         case _LOWER:
-            oled_write_P(PSTR("Lower\n"), false);
+            oled_write_P(PSTR("Symbols\n"), false);
             break;
         case _RAISE:
-            oled_write_P(PSTR("Raise\n"), false);
+            oled_write_P(PSTR("Num/Arr\n"), false);
             break;
         case _ADJUST:
             oled_write_P(PSTR("Adjust\n"), false);
@@ -210,23 +217,23 @@ static void render_status(void) {
     }
 
     // Host Keyboard LED Status
-    uint8_t led_usb_state = host_keyboard_leds();
+    /*uint8_t led_usb_state = host_keyboard_leds();
     oled_write_P(IS_LED_ON(led_usb_state, USB_LED_NUM_LOCK) ? PSTR("NUMLCK ") : PSTR("       "), false);
     oled_write_P(IS_LED_ON(led_usb_state, USB_LED_CAPS_LOCK) ? PSTR("CAPLCK ") : PSTR("       "), false);
     oled_write_P(IS_LED_ON(led_usb_state, USB_LED_SCROLL_LOCK) ? PSTR("SCRLCK ") : PSTR("       "), false);
-
+    */
 #ifdef WPM_ENABLE
      // Write WPM
      sprintf(wpm_str, "WPM: %03d", get_current_wpm());
      oled_write_P(PSTR("\n"), false);
      oled_write(wpm_str, false);
- #endif
- }
+#endif
+}
 
- static uint8_t zero_bar_count = 0;
- static uint8_t bar_count = 0;
+static uint8_t zero_bar_count = 0;
+static uint8_t bar_count = 0;
 
- static void render_wpm_graph(void) {
+static void render_wpm_graph(void) {
     uint8_t bar_height = 0;
     uint8_t bar_segment = 0;
 
@@ -261,62 +268,68 @@ static void render_status(void) {
         bar_count++;
         for (uint8_t i = (OLED_DISPLAY_HEIGHT / 8); i > 0; i--) {
             if (bar_height > 7) {
-            if (i % 2 == 1 && bar_count % 3 == 0)
-                bar_segment = 254;
-            else
+                #ifdef WPM_BARS
+                if (i % 2 == 1 && bar_count % 1 == 0)
+                    bar_segment = 254;
+                else
+                    bar_segment = 255;
+                #else
                 bar_segment = 255;
-            bar_height -= 8;
+                #endif
+                bar_height -= 8;
             } else {
-            switch (bar_height) {
-                case 0:
-                bar_segment = 0;
-                break;
+                switch (bar_height) {
+                    case 0:
+                    bar_segment = 0;
+                    break;
 
-                case 1:
-                bar_segment = 128;
-                break;
+                    case 1:
+                    bar_segment = 128;
+                    break;
 
-                case 2:
-                bar_segment = 192;
-                break;
+                    case 2:
+                    bar_segment = 192;
+                    break;
 
-                case 3:
-                bar_segment = 224;
-                break;
+                    case 3:
+                    bar_segment = 224;
+                    break;
 
-                case 4:
-                bar_segment = 240;
-                break;
+                    case 4:
+                    bar_segment = 240;
+                    break;
 
-                case 5:
-                bar_segment = 248;
-                break;
+                    case 5:
+                    bar_segment = 248;
+                    break;
 
-                case 6:
-                bar_segment = 252;
-                break;
+                    case 6:
+                    bar_segment = 252;
+                    break;
 
-                case 7:
-                bar_segment = 254;
-                break;
-            }
-            bar_height = 0;
+                    case 7:
+                    bar_segment = 254;
+                    break;
+                }
+                bar_height = 0;
 
-            if (i % 2 == 1 && bar_count % 3 == 0)
-                bar_segment++;
+                #ifdef WPM_BARS
+                if (i % 2 == 1 && bar_count % 1 == 0)
+                    bar_segment++;*/
+                #endif
             }
             oled_write_raw_byte(bar_segment, (i-1) * OLED_DISPLAY_WIDTH);
         }
     }
-    switch (get_highest_layer(layer_state)) {
+    /*switch (get_highest_layer(layer_state)) {
         case _QWERTY:
             sprintf(lay_str, "Def");
             break;
         case _LOWER:
-            sprintf(lay_str, "Lower");
+            sprintf(lay_str, "Symbols");
             break;
         case _RAISE:
-            sprintf(lay_str, "Raise");
+            sprintf(lay_str, "Num/Arr");
             break;
         case _ADJUST:
             sprintf(lay_str, "Adjust");
@@ -325,17 +338,18 @@ static void render_status(void) {
             sprintf(lay_str, "Undef");
     }
     sprintf(wpm_str, "L: %-9s WPM: %03d", lay_str, get_current_wpm());
-    oled_write(wpm_str, false);
- }
+    oled_write(wpm_str, false);*/
+
+    /*sprintf(wpm_str, "WPM: %03d", get_current_wpm());
+    oled_write(wpm_str, false);*/
+}
 
 void oled_task_user(void) {
     if (is_keyboard_master()) {
-        //render_status(); // Renders the current keyboard state (layer, lock, caps, scroll, etc)
-        render_wpm_graph();
+        render_status(); // Renders the current keyboard state (layer, lock, caps, scroll, etc)
     } else {
+        render_wpm_graph();
         //render_kyria_logo();
-        render_status();
-        //render_wpm_graph();
     }
 }
 #endif
@@ -382,14 +396,58 @@ void encoder_update_user(uint8_t index, bool clockwise) {
         }
     }
 }
+#endif
 
-void matrix_scan_user(void) {
-  if (is_gui_tab_active) {
-    if (timer_elapsed(gui_tab_timer) > 900) {
-      unregister_code(KC_LGUI);
-      is_gui_tab_active = false;
-    }
-  }
+#ifdef RGBLIGHT_ENABLE
+void keyboard_post_init_user(void) {
+  rgblight_sethsv(HSV_ORANGE);
+  rgblight_enable_noeeprom(); // Enables RGB, without saving settings
+  rgblight_sethsv_noeeprom(HSV_ORANGE);
+  wait_us(175);  // Add a slight delay between color and mode to ensure it's processed correctly
+  rgblight_mode_noeeprom(RGBLIGHT_MODE_STATIC_LIGHT);
+}
+
+void rgblight_set_hsv_and_mode(uint8_t hue, uint8_t sat, uint8_t val, uint8_t mode) {
+    rgblight_sethsv_noeeprom(hue, sat, val);
+    wait_us(175);  // Add a slight delay between color and mode to ensure it's processed correctly
+    rgblight_mode_noeeprom(mode);
 }
 #endif
+
+bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+    if (record->event.pressed) {
+        #ifdef RGBLIGHT_ENABLE
+            if (rgblight_is_enabled() == false) {
+                rgblight_enable_noeeprom();
+            }
+        #endif
+        idle_timer = timer_read();
+        halfmin_counter = 0;
+    }
+    return true;
+}
+
+void matrix_scan_user(void) {
+    if (is_gui_tab_active) {
+      if (timer_elapsed(gui_tab_timer) > 900) {
+          unregister_code(KC_LGUI);
+         is_gui_tab_active = false;
+      }
+    }
+
+    // idle_timer needs to be set one time
+    if (idle_timer == 0) idle_timer = timer_read();
+
+    #ifdef RGBLIGHT_ENABLE
+        if ( rgblight_is_enabled() == true && timer_elapsed(idle_timer) > 30000) {
+            halfmin_counter++;
+            idle_timer = timer_read();
+        }
+
+        if ( rgblight_is_enabled() == true && halfmin_counter >= BACKLIGHT_TIMEOUT * 2) {
+            rgblight_disable_noeeprom();
+            halfmin_counter = 0;
+        }
+    #endif
+}
 
